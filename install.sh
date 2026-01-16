@@ -23,7 +23,7 @@ echo "Detected system: $OS/$ARCH"
 # Determine download URL (Using GitHub Releases - Latest)
 GITHUB_URL="https://github.com/$REPO/releases/latest/download/${BINARY_NAME}-${OS}-${ARCH}"
 # Using a common GitHub Proxy
-MIRROR_URL="https://mirror.ghproxy.com/https://github.com/$REPO/releases/latest/download/${BINARY_NAME}-${OS}-${ARCH}"
+MIRROR_URL="https://github-1308564197.cos.ap-guangzhou.myqcloud.com/go-file-transfer/latest/${BINARY_NAME}-${OS}-${ARCH}"
 
 # Temporary file
 TMP_FILE="/tmp/${BINARY_NAME}"

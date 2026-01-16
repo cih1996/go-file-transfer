@@ -9,7 +9,7 @@ if ($env:TARGET) {
 
 $BinaryName = "$Target.exe"
 $GithubUrl = "https://github.com/$Repo/releases/latest/download/${Target}-windows-amd64.exe"
-$MirrorUrl = "https://mirror.ghproxy.com/https://github.com/$Repo/releases/latest/download/${Target}-windows-amd64.exe"
+$MirrorUrl = "https://github-1308564197.cos.ap-guangzhou.myqcloud.com/go-file-transfer/latest/${Target}-windows-amd64.exe"
 $InstallDir = "$env:USERPROFILE\bin"
 
 # Create installation directory if it doesn't exist
