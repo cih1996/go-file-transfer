@@ -1,7 +1,15 @@
 $ErrorActionPreference = 'Stop'
 $Repo = "cih1996/go-file-transfer"
-$BinaryName = "jp-file.exe"
-$DownloadUrl = "https://github.com/$Repo/releases/latest/download/jp-file-windows-amd64.exe"
+
+if ($env:TARGET) {
+    $Target = $env:TARGET
+} else {
+    $Target = "jp-file"
+}
+
+$BinaryName = "$Target.exe"
+$GithubUrl = "https://github.com/$Repo/releases/latest/download/${Target}-windows-amd64.exe"
+$MirrorUrl = "https://mirror.ghproxy.com/https://github.com/$Repo/releases/latest/download/${Target}-windows-amd64.exe"
 $InstallDir = "$env:USERPROFILE\bin"
 
 # Create installation directory if it doesn't exist
@@ -11,12 +19,25 @@ if (!(Test-Path -Path $InstallDir)) {
 
 $OutputFile = Join-Path -Path $InstallDir -ChildPath $BinaryName
 
+Function Download-File {
+    param ([string]$Url, [string]$OutFile)
+    try {
+        Invoke-WebRequest -Uri $Url -OutFile $OutFile -ErrorAction Stop
+        return $true
+    } catch {
+        return $false
+    }
+}
+
 Write-Host "Downloading $BinaryName..."
-try {
-    Invoke-WebRequest -Uri $DownloadUrl -OutFile $OutputFile
-} catch {
-    Write-Error "Failed to download: $_"
-    exit 1
+Write-Host "Trying domestic mirror ($MirrorUrl)..."
+
+if (-not (Download-File -Url $MirrorUrl -OutFile $OutputFile)) {
+    Write-Host "Mirror failed. Trying official GitHub ($GithubUrl)..."
+    if (-not (Download-File -Url $GithubUrl -OutFile $OutputFile)) {
+        Write-Error "Failed to download from both sources."
+        exit 1
+    }
 }
 
 Write-Host "Successfully installed to $OutputFile"
@@ -30,4 +51,4 @@ if ($UserPath -notlike "*$InstallDir*") {
     Write-Host "Path updated. You may need to restart your terminal."
 }
 
-Write-Host "Installation complete! Run 'jp-file' to start."
+Write-Host "Installation complete! Run '$Target' to start."

@@ -2,7 +2,7 @@
 
 # Configuration
 REPO="cih1996/go-file-transfer" # You need to replace this
-BINARY_NAME="jp-file"
+BINARY_NAME="${TARGET:-jp-file}"
 INSTALL_DIR="/usr/local/bin"
 
 # Detect OS and Arch
@@ -21,20 +21,34 @@ fi
 echo "Detected system: $OS/$ARCH"
 
 # Determine download URL (Using GitHub Releases - Latest)
-# Note: This assumes you have created a release and uploaded assets with the naming convention from build.sh
-DOWNLOAD_URL="https://github.com/$REPO/releases/latest/download/${BINARY_NAME}-${OS}-${ARCH}"
+GITHUB_URL="https://github.com/$REPO/releases/latest/download/${BINARY_NAME}-${OS}-${ARCH}"
+# Using a common GitHub Proxy
+MIRROR_URL="https://mirror.ghproxy.com/https://github.com/$REPO/releases/latest/download/${BINARY_NAME}-${OS}-${ARCH}"
 
 # Temporary file
 TMP_FILE="/tmp/${BINARY_NAME}"
 
-echo "Downloading $BINARY_NAME from $DOWNLOAD_URL..."
-if command -v curl >/dev/null 2>&1; then
-    curl -fsSL -o "$TMP_FILE" "$DOWNLOAD_URL"
-elif command -v wget >/dev/null 2>&1; then
-    wget -qO "$TMP_FILE" "$DOWNLOAD_URL"
+download_file() {
+    url=$1
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL -o "$TMP_FILE" "$url"
+    elif command -v wget >/dev/null 2>&1; then
+        wget -qO "$TMP_FILE" "$url"
+    else
+        echo "Error: curl or wget is required."
+        exit 1
+    fi
+}
+
+echo "Trying to download from domestic mirror ($MIRROR_URL)..."
+if download_file "$MIRROR_URL"; then
+    echo "Download from mirror successful."
 else
-    echo "Error: curl or wget is required."
-    exit 1
+    echo "Mirror failed. Trying official GitHub ($GITHUB_URL)..."
+    if ! download_file "$GITHUB_URL"; then
+        echo "Error: Download failed from both sources."
+        exit 1
+    fi
 fi
 
 if [ ! -f "$TMP_FILE" ]; then

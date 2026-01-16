@@ -15,13 +15,21 @@
 ### macOS / Linux (Bash)
 
 ```bash
+# 安装 jp-file (默认)
 curl -fsSL https://raw.githubusercontent.com/cih1996/go-file-transfer/main/install.sh | bash
+
+# 安装 jp-server (服务端)
+curl -fsSL https://raw.githubusercontent.com/cih1996/go-file-transfer/main/install.sh | TARGET=jp-server bash
 ```
 
 ### Windows (PowerShell)
 
 ```powershell
+# 安装 jp-file (默认)
 iwr -useb https://raw.githubusercontent.com/cih1996/go-file-transfer/main/install.ps1 | iex
+
+# 安装 jp-server (服务端)
+$env:TARGET="jp-server"; iwr -useb https://raw.githubusercontent.com/cih1996/go-file-transfer/main/install.ps1 | iex
 ```
 
 或者手动下载 [Releases](https://github.com/cih1996/go-file-transfer/releases) 中的对应版本。
