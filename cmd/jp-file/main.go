@@ -21,6 +21,7 @@ var (
 
 type Config struct {
 	Server string `json:"server"`
+	Code   string `json:"code,omitempty"`
 }
 
 func getConfigPath() string {
@@ -60,7 +61,7 @@ func main() {
 	flag.Parse()
 
 	cfg := loadConfig()
-	
+
 	// Determine server address: flag > config > default
 	finalServerAddr := "127.0.0.1:9999"
 	if *serverAddr != "" {
@@ -76,20 +77,30 @@ func main() {
 		cfg.Server = finalServerAddr
 		saveConfig(cfg)
 	}
-	
+
 	*serverAddr = finalServerAddr
 
 	args := flag.Args()
 	if len(args) == 0 {
 		fmt.Printf("Using Server: %s\n", *serverAddr)
 		runReceiver()
+	} else if len(args) == 1 {
+		// Try to use stored code if available
+		if cfg.Code == "" {
+			fmt.Println("Error: No code provided and no stored code found in config.")
+			fmt.Println("Usage: jp-file [-server addr] <code> <filepath>")
+			os.Exit(1)
+		}
+		fmt.Printf("Using Server: %s\n", *serverAddr)
+		fmt.Printf("Using Stored Code: %s\n", cfg.Code)
+		runSender(cfg.Code, args[0], cfg)
 	} else if len(args) == 2 {
 		fmt.Printf("Using Server: %s\n", *serverAddr)
-		runSender(args[0], args[1])
+		runSender(args[0], args[1], cfg)
 	} else {
 		fmt.Println("Usage:")
 		fmt.Println("  Receiver: jp-file [-server addr] [-d output_dir]")
-		fmt.Println("  Sender:   jp-file [-server addr] <code> <filepath>")
+		fmt.Println("  Sender:   jp-file [-server addr] [code] <filepath>")
 		os.Exit(1)
 	}
 }
@@ -166,27 +177,40 @@ func runReceiver() {
 
 		// Receive data (Exactly metadata.Size bytes)
 		pb := &ProgressBar{Total: metadata.Size}
-		
+
 		// Use io.LimitReader to read exactly the file size
 		limitReader := io.LimitReader(conn, metadata.Size)
-		
+
 		_, err = io.Copy(io.MultiWriter(file, pb), limitReader)
 		if err != nil {
 			log.Printf("Error during transfer: %v", err)
 		}
-		
+
 		file.Close()
-		fmt.Println("\nFile received successfully!")
+		fmt.Println("\nFile received successfully! Sending confirmation...")
+
+		// Send TransferComplete
+		err = protocol.SendMessage(conn, protocol.MsgTransferComplete, nil)
+		if err != nil {
+			log.Printf("Failed to send confirmation: %v", err)
+		}
+
 		fmt.Println("Waiting for next file...")
 	}
 }
 
-func runSender(code string, filePath string) {
+func runSender(code string, filePath string, cfg Config) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		log.Fatalf("Failed to open file: %v", err)
 	}
 	defer file.Close()
+
+	// Update code in config if changed
+	if code != cfg.Code {
+		cfg.Code = code
+		saveConfig(cfg)
+	}
 
 	info, err := file.Stat()
 	if err != nil {
@@ -243,14 +267,30 @@ func runSender(code string, filePath string) {
 
 	fmt.Println("Receiver ready. Sending data...")
 	pb := &ProgressBar{Total: info.Size()}
-	
+
 	// Send data
 	_, err = io.Copy(io.MultiWriter(conn, pb), file)
 	if err != nil {
 		log.Fatalf("Failed to send data: %v", err)
 	}
-	
-	fmt.Println("\nFile sent successfully!")
+
+	fmt.Println("\nFile data sent. Waiting for receiver confirmation...")
+
+	// Wait for TransferComplete
+	msg, err = protocol.ReadMessage(conn)
+	if err != nil {
+		log.Fatalf("Failed to read confirmation: %v", err)
+	}
+	if msg.Type != protocol.MsgTransferComplete {
+		if msg.Type == protocol.MsgError {
+			var payload protocol.ErrorPayload
+			json.Unmarshal(msg.Payload, &payload)
+			log.Fatalf("Transfer failed: %s", payload.Message)
+		}
+		log.Fatalf("Unexpected confirmation message: %s", msg.Type)
+	}
+
+	fmt.Println("Transfer confirmed by receiver!")
 }
 
 // Simple Progress Bar

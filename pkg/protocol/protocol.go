@@ -16,6 +16,7 @@ const (
 	MsgSenderConnected    MessageType = "sender_connected"
 	MsgFileMetadata       MessageType = "file_metadata"
 	MsgReadyToReceive     MessageType = "ready_to_receive"
+	MsgTransferComplete   MessageType = "transfer_complete"
 	MsgError              MessageType = "error"
 )
 

@@ -14,11 +14,12 @@ import (
 
 // ReceiverSession holds the connection and synchronization primitives for a receiver
 type ReceiverSession struct {
-	Conn      net.Conn
-	Code      string
-	OpLock    sync.Mutex      // Ensures only one sender can transfer at a time
-	ReadyChan chan bool       // Notifies sender handler that receiver is ready for data
-	CloseChan chan struct{}   // Notifies cleanup
+	Conn         net.Conn
+	Code         string
+	OpLock       sync.Mutex             // Ensures only one sender can transfer at a time
+	ReadyChan    chan bool              // Notifies sender handler that receiver is ready for data
+	FeedbackChan chan *protocol.Message // Carries feedback messages (e.g. TransferComplete) from receiver
+	CloseChan    chan struct{}          // Notifies cleanup
 }
 
 var (
@@ -73,10 +74,11 @@ func handleConnection(conn net.Conn) {
 func handleReceiver(conn net.Conn) {
 	code := generateCode()
 	session := &ReceiverSession{
-		Conn:      conn,
-		Code:      code,
-		ReadyChan: make(chan bool),
-		CloseChan: make(chan struct{}),
+		Conn:         conn,
+		Code:         code,
+		ReadyChan:    make(chan bool),
+		FeedbackChan: make(chan *protocol.Message),
+		CloseChan:    make(chan struct{}),
 	}
 
 	mu.Lock()
@@ -115,6 +117,13 @@ func handleReceiver(conn net.Conn) {
 			case session.ReadyChan <- true:
 			case <-time.After(5 * time.Second):
 				log.Printf("Receiver %s timed out sending ready signal", code)
+			}
+		case protocol.MsgTransferComplete:
+			// Signal that receiver has finished receiving data
+			select {
+			case session.FeedbackChan <- msg:
+			case <-time.After(5 * time.Second):
+				log.Printf("Receiver %s timed out sending feedback", code)
 			}
 		default:
 			log.Printf("Unexpected message from receiver %s: %s", code, msg.Type)
@@ -172,6 +181,12 @@ func handleSender(senderConn net.Conn, code string) {
 	}
 
 	// Forward Metadata to Receiver
+	var meta protocol.FileMetadataPayload
+	if err := json.Unmarshal(msg.Payload, &meta); err != nil {
+		log.Println("Error unmarshaling metadata:", err)
+		return
+	}
+
 	err = protocol.SendMessage(session.Conn, protocol.MsgFileMetadata, msg.Payload) // Forward raw payload
 	if err != nil {
 		log.Println("Error sending metadata to receiver:", err)
@@ -200,13 +215,30 @@ func handleSender(senderConn net.Conn, code string) {
 	}
 
 	// Proxy Data
-	log.Printf("Transferring data for code %s...", code)
-	_, err = io.Copy(session.Conn, senderConn)
+	log.Printf("Transferring data for code %s (Size: %d)...", code, meta.Size)
+	// Use CopyN to avoid reading beyond file size (which would block if sender doesn't close)
+	_, err = io.CopyN(session.Conn, senderConn, meta.Size)
 	if err != nil {
 		log.Println("Error during data transfer:", err)
+		return
 	}
-	
-	log.Printf("Transfer finished for code %s", code)
+
+	log.Printf("Data transfer finished for code %s. Waiting for receiver confirmation...", code)
+
+	// Wait for TransferComplete from Receiver
+	select {
+	case <-session.FeedbackChan:
+		log.Printf("Receiver confirmed transfer for code %s", code)
+		// Forward confirmation to Sender
+		protocol.SendMessage(senderConn, protocol.MsgTransferComplete, nil)
+	case <-time.After(30 * time.Second):
+		log.Printf("Timeout waiting for receiver confirmation code %s", code)
+		protocol.SendMessage(senderConn, protocol.MsgError, protocol.ErrorPayload{Message: "Timeout waiting for receiver confirmation"})
+	case <-session.CloseChan:
+		log.Printf("Receiver disconnected while waiting for confirmation code %s", code)
+		protocol.SendMessage(senderConn, protocol.MsgError, protocol.ErrorPayload{Message: "Receiver disconnected"})
+	}
+
 	// Note: We do NOT close session.Conn here.
 }
 
