@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configuration
-REPO="YOUR_USERNAME/go-file-transfer" # You need to replace this
+REPO="cih1996/go-file-transfer" # You need to replace this
 BINARY_NAME="jp-file"
 INSTALL_DIR="/usr/local/bin"
 

@@ -15,10 +15,10 @@
 使用以下命令一键安装最新版本（支持 macOS 和 Linux）：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/go-file-transfer/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/cih1996/go-file-transfer/main/install.sh | bash
 ```
 
-或者手动下载 [Releases](https://github.com/YOUR_USERNAME/go-file-transfer/releases) 中的对应版本。
+或者手动下载 [Releases](https://github.com/cih1996/go-file-transfer/releases) 中的对应版本。
 
 ## 使用指南
 
